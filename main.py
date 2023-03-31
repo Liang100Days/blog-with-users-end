@@ -36,39 +36,61 @@ class User(UserMixin, db.Model):
     email = db.Column(db.String(100), unique=True)
     password = db.Column(db.String(100))
     name = db.Column(db.String(100))
+
+    #This will act like a List of BlogPost objects attached to each User. 
+    #The "author" refers to the author property in the BlogPost class.
     posts = relationship("BlogPost", back_populates="author")
+
+    #*******Add parent relationship*******#
+    #"comment_author" refers to the comment_author property in the Comment class.
     comments = relationship("Comment", back_populates="comment_author")
 
 
 class BlogPost(db.Model):
     __tablename__ = "blog_posts"
     id = db.Column(db.Integer, primary_key=True)
+
+    #Create Foreign Key, "users.id" the users refers to the tablename of User
     author_id = db.Column(db.Integer, db.ForeignKey("users.id"))
+
+    #Create reference to the User object, the "posts" refers to the posts protperty in the User class.
     author = relationship("User", back_populates="posts")
+  
     title = db.Column(db.String(250), unique=True, nullable=False)
     subtitle = db.Column(db.String(250), nullable=False)
     date = db.Column(db.String(250), nullable=False)
     body = db.Column(db.Text, nullable=False)
     img_url = db.Column(db.String(250), nullable=False)
+
+    #***************Parent Relationship*************#
     comments = relationship("Comment", back_populates="parent_post")
 
 
 class Comment(db.Model):
     __tablename__ = "comments"
     id = db.Column(db.Integer, primary_key=True)
+  
+    #***************Child Relationship*************#
     post_id = db.Column(db.Integer, db.ForeignKey("blog_posts.id"))
+
+    #*******Add child relationship*******#
+    #"users.id" The users refers to the tablename of the Users class.
+    #"comments" refers to the comments property in the User class.
     author_id = db.Column(db.Integer, db.ForeignKey("users.id"))
     parent_post = relationship("BlogPost", back_populates="comments")
     comment_author = relationship("User", back_populates="comments")
     text = db.Column(db.Text, nullable=False)
+# Create all the tables in the database
 db.create_all()
 
-
+#Create admin-only decorator
 def admin_only(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
+      #If id is not 1 then return abort with 403 error  
         if current_user.id != 1:
             return abort(403)
+        #Otherwise continue with the route function
         return f(*args, **kwargs)
     return decorated_function
 
@@ -78,12 +100,13 @@ def get_all_posts():
     posts = BlogPost.query.all()
     return render_template("index.html", all_posts=posts, current_user=current_user)
 
-
+#Register new users into the User database
 @app.route('/register', methods=["GET", "POST"])
 def register():
     form = RegisterForm()
     if form.validate_on_submit():
-
+        
+        #If user's email already exists
         if User.query.filter_by(email=form.email.data).first():
             print(User.query.filter_by(email=form.email.data).first())
             #User already exists
@@ -102,6 +125,8 @@ def register():
         )
         db.session.add(new_user)
         db.session.commit()
+
+        #This line will authenticate the user with Flask-Login
         login_user(new_user)
         return redirect(url_for("get_all_posts"))
 
@@ -167,6 +192,7 @@ def contact():
 
 
 @app.route("/new-post", methods=["GET", "POST"])
+#Mark with decorator
 @admin_only
 def add_new_post():
     form = CreatePostForm()
